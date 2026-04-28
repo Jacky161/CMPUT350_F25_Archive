@@ -1,0 +1,14 @@
+name: Lab 1 Prep Compile Runner
+run-name: ${{ github.actor }}
+on: push
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          sudo apt update && sudo apt install -y \
+          gcc-11 
+      - name: Compile 
+        run: gcc-11 -g -Wall -Wextra -Wconversion -Wsign-conversion -O -std=c99 prep.c
