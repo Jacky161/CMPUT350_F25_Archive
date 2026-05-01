@@ -26,6 +26,9 @@ const float TUBE_SPEED = 3.0f;
 // TODO: (Q1)
 //  Initial Bird Attributes
 //  Initialize the global (constant) variables for it here (radius, position, color)
+constexpr sf::Vector2f INITIAL_BIRD_POS { 100.0, 400.0 };
+constexpr float BIRD_RADIUS { 15.0 };
+constexpr sf::Color BIRD_COLOR { sf::Color::Yellow };
 
 // ResourceManager just owns all the resources/assets you'd want in your game.
 // In an engine, you'd probably want to make this more flexible than what we have here
@@ -71,6 +74,8 @@ bool isTubeOffScreen(const TubePair& tube) { return tube.isOffScreen(); }
 struct BirdState {
     BirdState()
         : velocityY { INITIAL_BIRD_VELOCITY_Y }
+        , circle { BIRD_RADIUS }
+        , pos { INITIAL_BIRD_POS }
     {
         // ====== ====== ======
         // TODO: (Q1)
@@ -78,6 +83,30 @@ struct BirdState {
         //    appropriate size, color, and initial position.
         //  Note: consider using member initializer list to set the radius via ctor call.
         // ====== ====== ======
+        circle.setFillColor(BIRD_COLOR);
+
+        // Set coordinates to be relative to the centre
+        circle.setOrigin({ circle.getRadius(), circle.getRadius() });
+
+        circle.setPosition(pos);
+    }
+
+    void jump()
+    {
+        velocityY = JUMP_SPEED - GRAVITY; // GRAVITY gets added later, so we cancel it out here
+    }
+
+    void updatePosition()
+    {
+        pos.y += velocityY;
+        circle.setPosition(pos);
+    }
+
+    void reset()
+    {
+        velocityY = 0;
+        pos = INITIAL_BIRD_POS;
+        circle.setPosition(pos);
     }
 
     // ====== ====== ======
@@ -85,6 +114,8 @@ struct BirdState {
     //  - add a field for the bird's shape.
     // ====== ====== ======
     float velocityY;
+    sf::CircleShape circle;
+    sf::Vector2f pos;
 };
 
 struct GameState {
@@ -114,6 +145,12 @@ private:
         }
     }
 
+    void reset()
+    {
+        resetTubes();
+        bird.reset();
+    }
+
     void resetTubes()
     {
         tubes.clear();
@@ -132,6 +169,7 @@ private:
         //    Should be equivalent to: bird.positionY += bird.velocityY;
         //  - Note: bird's x-coordinate will alway be exactly 100.f
         // ====== ====== ======
+        bird.updatePosition();
 
         // ====== ====== ======
         // TODO: (Q3)
@@ -139,6 +177,9 @@ private:
         //    (i.e., if it's no longer visible). If not, game should reset by clearing
         //    the tubes and restarting the game (setting the bird back to original initial position)
         // ====== ====== ======
+        if (bird.pos.y + BIRD_RADIUS < 0 || bird.pos.y - BIRD_RADIUS > WINDOW_HEIGHT) {
+            reset();
+        }
     }
 
     void updateTubes()
@@ -177,6 +218,18 @@ private:
         //  If bird hits tube, game should reset by resetting the tubes and resetting the bird
         //  to its initial state (i.e., restarting the game)
         // ====== ====== ======
+
+        const sf::FloatRect birdAABB { bird.circle.getGlobalBounds() };
+
+        for (const TubePair& tube : tubes) {
+            const sf::FloatRect tubeTopAABB { tube.topTube.getGlobalBounds() };
+            const sf::FloatRect tubeBottomAABB { tube.bottomTube.getGlobalBounds() };
+
+            if (birdAABB.findIntersection(tubeTopAABB)
+                || birdAABB.findIntersection(tubeBottomAABB)) {
+                reset();
+            }
+        }
     }
 
 public:
@@ -201,6 +254,13 @@ void handleInput(
         // TODO: (Q2)
         //  implement jump logic (the key press should be space) and play jump sound fx
         // ====== ====== ======
+        if (const auto* keyPressed = event->getIf<sf::Event::KeyPressed>()) {
+            // We know a key was pressed, lets check if it was the space key!
+            if (keyPressed->scancode == sf::Keyboard::Scan::Space) {
+                gameState.bird.jump();
+                resources.jumpSound->play();
+            }
+        }
     }
 }
 
@@ -216,6 +276,8 @@ void render(sf::RenderWindow& window, const GameState& gameState)
     // ====== ====== ======
     // TODO: (Q1) Draw bird
     // ====== ====== ======
+    window.draw(gameState.bird.circle);
+
     window.display();
 }
 
@@ -248,6 +310,12 @@ int main()
         //            std::cout << "value is " << *intPtr << '\n';
         //            std::cout << "raw address is " << intPtr.get() << '\n';
         // ====== ====== ======
+        resources.jumpSoundBuffer.reset(new sf::SoundBuffer);
+        if (!resources.jumpSoundBuffer->loadFromFile("../assets/jump.wav")) {
+            // failed to load sound file, handle here:
+            std::cerr << "Warning: Could not load jump.wav\n";
+        }
+        resources.jumpSound.reset(new sf::Sound { *resources.jumpSoundBuffer });
 
         bool shouldQuit = false;
         // Main game loop
